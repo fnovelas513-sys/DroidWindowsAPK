@@ -1,3 +1,4 @@
+
 name: Build DroidWindows APK
 
 on:
@@ -11,45 +12,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Preparar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: "latest"
+          accept-android-sdk-licenses: true
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
-      - name: Extract project ZIP
+      - name: Instalar Gradle
+        run: |
+          curl -L https://services.gradle.org/distributions/gradle-8.9-bin.zip -o gradle.zip
+          unzip -q gradle.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.9/bin" >> "$GITHUB_PATH"
+
+      - name: Encontrar y descomprimir proyecto
         run: |
           mkdir -p project
-          unzip -q *.zip -d project
 
-      - name: Find Gradle wrapper
-        run: |
-          GRADLE_FILE=$(find project -name gradlew -type f | head -n 1)
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" -print -quit)
 
-          if [ -z "$GRADLE_FILE" ]; then
-            echo "No se encontró gradlew en el ZIP"
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No se encontró el ZIP del proyecto."
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$GRADLE_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          unzip -q "$ZIP_FILE" -d project
 
-      - name: Build APK
-        run: |
-          cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          SETTINGS_FILE=$(find project -type f \( -name "settings.gradle.kts" -o -name "settings.gradle" \) -print -quit)
 
-      - name: Upload APK
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: No se encontró settings.gradle."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        run: gradle -p "$PROJECT_DIR" assembleDebug
+
+      - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: DroidWindows-APK
+          name: DroidWindows-debug-apk
           path: project/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          
