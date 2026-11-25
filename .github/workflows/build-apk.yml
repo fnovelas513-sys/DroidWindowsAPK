@@ -36,27 +36,39 @@ jobs:
           unzip -q gradle.zip -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gradle-8.9/bin" >> "$GITHUB_PATH"
 
-      - name: Encontrar y descomprimir proyecto
+      - name: Buscar y descomprimir proyecto
         run: |
           mkdir -p project
 
-          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" -print -quit)
+          ZIP_FILE=$(find . -type f -name "*.zip" -not -path "./.git/*" -print -quit)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No se encontró el ZIP del proyecto."
+            echo "ERROR: No se encontró ningún ZIP en el repositorio."
+            echo "Archivos disponibles:"
+            find . -maxdepth 3 -type f
             exit 1
           fi
 
-          unzip -q "$ZIP_FILE" -d project
+          echo "ZIP encontrado: $ZIP_FILE"
+          echo "Contenido del ZIP:"
+          unzip -l "$ZIP_FILE"
+
+          unzip -o -q "$ZIP_FILE" -d project
+
+          echo "Archivos extraídos:"
+          find project -maxdepth 8 -type f | head -150
 
           SETTINGS_FILE=$(find project -type f \( -name "settings.gradle.kts" -o -name "settings.gradle" \) -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: No se encontró settings.gradle."
+            echo "ERROR: No se encontró settings.gradle ni settings.gradle.kts."
+            echo "El ZIP podría no contener el proyecto Android completo."
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          echo "Proyecto encontrado en: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Compilar APK
